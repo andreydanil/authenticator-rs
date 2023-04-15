@@ -1,3 +1,4 @@
+use super::get_info::AuthenticatorInfo;
 use super::{
     Command, CommandError, PinUvAuthCommand, Request, RequestCtap1, RequestCtap2, Retryable,
     StatusCode,
@@ -251,11 +252,22 @@ impl PinUvAuthCommand for GetAssertion {
         }
     }
 
-    fn set_discouraged_uv_option(&mut self) {
-        // "[..] the Relying Party does not wish to require user verification (e.g., by setting options.userVerification
-        // to "discouraged" in the WebAuthn API), the platform invokes the authenticatorGetAssertion operation using
-        // the marshalled input parameters along with an absent "uv" option key."
-        self.set_uv_option(None);
+    fn handle_discouraged_uv_option(&mut self, info: &AuthenticatorInfo) -> bool {
+        let supports_uv = info.options.user_verification == Some(true);
+        let pin_configured = info.options.client_pin == Some(true);
+        let uv_preferred_or_required = self.get_uv_option() != Some(false);
+
+        if (supports_uv || pin_configured) && uv_preferred_or_required {
+            // If the token is protected AND the RP doesn't specifically discourage UV, we have to use it
+            self.set_uv_option(Some(true));
+            false
+        } else {
+            // "[..] the Relying Party does not wish to require user verification (e.g., by setting options.userVerification
+            // to "discouraged" in the WebAuthn API), the platform invokes the authenticatorGetAssertion operation using
+            // the marshalled input parameters along with an absent "uv" option key."
+            self.set_uv_option(None);
+            true
+        }
     }
 }
 

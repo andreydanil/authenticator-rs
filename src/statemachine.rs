@@ -445,6 +445,12 @@ impl StateMachineCtap2 {
         let supports_pin = info.options.client_pin.is_some();
         let pin_configured = info.options.client_pin == Some(true);
 
+        // Check if the combination of device-protection and request-options
+        // are allowing for 'discouraged', meaning no auth required.
+        if cmd.handle_discouraged_uv_option(info) {
+            return Ok(PinUvAuthResult::NoAuthRequired);
+        }
+
         // Device does not support any auth-method
         if !pin_configured && !supports_uv {
             // We'll send it to the device anyways, and let it error out (or magically work)
@@ -525,12 +531,6 @@ impl StateMachineCtap2 {
         // CTAP1/U2F-only devices do not support PinUvAuth, so we skip it
         if !dev.supports_ctap2() {
             return Ok(PinUvAuthResult::DeviceIsCtap1);
-        }
-
-        // TODO: API needs a better way to express "uv = discouraged"
-        if cmd.get_uv_option() == Some(false) {
-            cmd.set_discouraged_uv_option();
-            return Ok(PinUvAuthResult::NoAuthRequired);
         }
 
         while alive() {
